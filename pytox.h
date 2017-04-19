@@ -38,8 +38,8 @@
 // https://github.com/abbat/pytoxcore/pull/7
 // https://github.com/abbat/pytoxcore/issues/11
 #ifdef TOX_TOKTOK
-    #if TOX_VERSION_IS_API_COMPATIBLE(0, 0, 1)
-        #define TOX_TOKTOK_STATELESS_CALLBACKS
+    #if !(TOX_VERSION_IS_API_COMPATIBLE(0, 1, 7))
+        #undef TOX_TOKTOK
     #endif
 #endif
 //----------------------------------------------------------------------------------------------

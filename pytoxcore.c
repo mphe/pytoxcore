@@ -1911,7 +1911,7 @@ static PyObject* ToxCore_tox_iterate(ToxCore* self, PyObject* args)
 
     PyThreadState* gil = PyEval_SaveThread();
 
-#ifdef TOX_TOKTOK_STATELESS_CALLBACKS
+#ifdef TOX_TOKTOK
     tox_iterate(self->tox, self);
 #else
     tox_iterate(self->tox);
@@ -3145,7 +3145,7 @@ static int init_helper(ToxCore* self, PyObject* args)
     if (tox == NULL || success == false)
         return -1;
 
-#ifdef TOX_TOKTOK_STATELESS_CALLBACKS
+#ifdef TOX_TOKTOK
     tox_callback_self_connection_status(tox, callback_self_connection_status);
     tox_callback_friend_request(tox, callback_friend_request);
     tox_callback_friend_message(tox, callback_friend_message);

@@ -321,6 +321,7 @@ static PyObject* ToxAV_callback_stub(ToxCoreAV* self, PyObject* args)
 }
 //----------------------------------------------------------------------------------------------
 
+#ifndef TOX_TOKTOK
 static PyObject* ToxAV_toxav_version_major(ToxCoreAV* self, PyObject* args)
 {
     uint32_t result = toxav_version_major();
@@ -359,6 +360,7 @@ static PyObject* ToxAV_toxav_version_is_compatible(ToxCoreAV* self, PyObject* ar
     return PyBool_FromLong(result);
 }
 //----------------------------------------------------------------------------------------------
+#endif
 
 static PyObject* ToxAV_toxav_kill(ToxCoreAV* self, PyObject* args)
 {
@@ -930,6 +932,7 @@ PyMethodDef ToxAV_methods[] = {
     // methods
     //
 
+#ifndef TOX_TOKTOK
     {
         "toxav_version_major", (PyCFunction)ToxAV_toxav_version_major, METH_NOARGS | METH_STATIC,
         "toxav_version_major()\n"
@@ -953,6 +956,7 @@ PyMethodDef ToxAV_methods[] = {
         "Return whether the compiled library version is compatible with the passed "
         "version numbers."
     },
+#endif
     {
         "toxav_kill", (PyCFunction)ToxAV_toxav_kill, METH_NOARGS,
         "toxav_kill()\n"
@@ -1202,12 +1206,14 @@ void ToxAV_install_dict(void)
     if (dict == NULL)
         return;
 
+#ifndef TOX_TOKTOK
     // #define TOXAV_VERSION_MAJOR
     SET(TOXAV_VERSION_MAJOR);
     // #define TOXAV_VERSION_MINOR
     SET(TOXAV_VERSION_MINOR);
     // #define TOXAV_VERSION_PATCH
     SET(TOXAV_VERSION_PATCH);
+#endif
 
     // enum TOXAV_FRIEND_CALL_STATE
     SET(TOXAV_FRIEND_CALL_STATE_ERROR);

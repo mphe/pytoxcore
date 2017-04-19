@@ -15,8 +15,8 @@ sha512sums=('SKIP')
 
 build() {
     cd "${_pkgname}"
-
-    python setup.py build
+    CFLAGS="-DTOX_TOKTOK" python setup.py build
+    # python setup.py build
 }
 
 package() {
