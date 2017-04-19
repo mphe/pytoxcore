@@ -566,6 +566,30 @@ static void callback_friend_lossless_packet(Tox* tox, uint32_t friend_number, co
 }
 //----------------------------------------------------------------------------------------------
 
+static void callback_conference_invite(Tox *tox, uint32_t friendnumber, TOX_CONFERENCE_TYPE type, const uint8_t *data, size_t length, void *self)
+{
+    PyGILState_STATE gil = PyGILState_Ensure();
+    PyObject_CallMethod((PyObject*)self, "tox_conference_invite_cb", "II" BUF_TCS, friendnumber, type, data, length);
+    PyGILState_Release(gil);
+}
+//----------------------------------------------------------------------------------------------
+
+static void callback_conference_message(Tox *tox, uint32_t conference_number, uint32_t peer_number, TOX_MESSAGE_TYPE type, const uint8_t* message, size_t length, void *self)
+{
+    PyGILState_STATE gil = PyGILState_Ensure();
+    PyObject_CallMethod((PyObject*)self, "tox_conference_message_cb", "iiis#", conference_number, peer_number, type, message, length - (message[length - 1] == 0));
+    PyGILState_Release(gil);
+}
+//----------------------------------------------------------------------------------------------
+
+static void callback_conference_namelist_change(Tox *tox, uint32_t conference_number, uint32_t peer_number, TOX_CONFERENCE_STATE_CHANGE change, void* self)
+{
+    PyGILState_STATE gil = PyGILState_Ensure();
+    PyObject_CallMethod((PyObject*)self, "tox_conference_namelist_cb", "iii", conference_number, peer_number, change);
+    PyGILState_Release(gil);
+}
+//----------------------------------------------------------------------------------------------
+
 static PyObject* ToxCore_callback_stub(ToxCore* self, PyObject* args)
 {
     Py_RETURN_NONE;
@@ -1540,6 +1564,256 @@ static PyObject* ToxCore_tox_friend_get_public_key(ToxCore* self, PyObject* args
 }
 //----------------------------------------------------------------------------------------------
 
+static PyObject* ToxCore_tox_conference_new(ToxCore* self, PyObject* args)
+{
+    CHECK_TOX(self);
+
+    TOX_ERR_CONFERENCE_NEW error;
+    uint32_t conference_number = tox_conference_new(self->tox, &error);
+    if (error != TOX_ERR_CONFERENCE_NEW_OK)
+        PyErr_SetString(ToxCoreException, "failed to create conference");
+
+    return PyLong_FromLong(conference_number);
+}
+//----------------------------------------------------------------------------------------------
+
+static PyObject* ToxCore_tox_conference_delete(ToxCore* self, PyObject* args)
+{
+    CHECK_TOX(self);
+
+    int conference_number = 0;
+
+    if (!PyArg_ParseTuple(args, "i", &conference_number))
+        return NULL;
+
+    TOX_ERR_CONFERENCE_DELETE error;
+    tox_conference_delete(self->tox, conference_number, &error);
+    if (error != TOX_ERR_CONFERENCE_DELETE_OK)
+        PyErr_SetString(ToxCoreException, "failed to delete conference");
+
+    Py_RETURN_NONE;
+}
+//----------------------------------------------------------------------------------------------
+
+static PyObject* ToxCore_tox_conference_get_title(ToxCore* self, PyObject* args)
+{
+    CHECK_TOX(self);
+
+    int conference_number = 0;
+    if (!PyArg_ParseTuple(args, "i", &conference_number))
+        return NULL;
+
+    uint8_t buf[TOX_MAX_NAME_LENGTH];
+    memset(buf, 0, TOX_MAX_NAME_LENGTH);
+
+    TOX_ERR_CONFERENCE_TITLE error;
+    tox_conference_get_title(self->tox, conference_number, buf, &error);
+    if (error != TOX_ERR_CONFERENCE_TITLE_OK)
+        return PYSTRING_FromString("");  /* no title. */
+
+    return PYSTRING_FromString((const char*)buf);
+}
+//----------------------------------------------------------------------------------------------
+
+static PyObject* ToxCore_tox_conference_set_title(ToxCore* self, PyObject* args)
+{
+    CHECK_TOX(self);
+
+    int conference_number = 0;
+    uint8_t* title = NULL;
+    uint32_t length = 0;
+
+    if (!PyArg_ParseTuple(args, "is#", &conference_number, &title, &length))
+        return NULL;
+
+    TOX_ERR_CONFERENCE_TITLE error;
+    tox_conference_set_title(self->tox, conference_number, title, length, &error);
+    if (error != TOX_ERR_CONFERENCE_TITLE_OK)
+        PyErr_SetString(ToxCoreException, "failed to set the conference title");
+
+    Py_RETURN_NONE;
+}
+//----------------------------------------------------------------------------------------------
+
+static PyObject* ToxCore_tox_conference_get_type(ToxCore* self, PyObject* args)
+{
+    CHECK_TOX(self);
+
+    int conference_number = 0;
+    if (!PyArg_ParseTuple(args, "i", &conference_number))
+        return NULL;
+
+    TOX_ERR_CONFERENCE_GET_TYPE error;
+    TOX_CONFERENCE_TYPE type = tox_conference_get_type(self->tox, conference_number, &error);
+    if (error != TOX_ERR_CONFERENCE_GET_TYPE_OK)
+        PyErr_SetString(ToxCoreException, "failed to get conference type");
+
+    return PyLong_FromLong(type);
+}
+//----------------------------------------------------------------------------------------------
+
+static PyObject* ToxCore_tox_conference_peer_get_name(ToxCore* self, PyObject* args)
+{
+    CHECK_TOX(self);
+
+    uint8_t buf[TOX_MAX_NAME_LENGTH];
+    memset(buf, 0, TOX_MAX_NAME_LENGTH);
+
+    int conference_number = 0;
+    int peer_number = 0;
+    if (!PyArg_ParseTuple(args, "ii", &conference_number, &peer_number))
+        return NULL;
+
+    TOX_ERR_CONFERENCE_PEER_QUERY error;
+    tox_conference_peer_get_name(self->tox, conference_number,
+            peer_number, buf, &error);
+    if (error != TOX_ERR_CONFERENCE_PEER_QUERY_OK)
+        PyErr_SetString(ToxCoreException, "failed to get conference peer name");
+
+    return PYSTRING_FromString((const char*)buf);
+}
+//----------------------------------------------------------------------------------------------
+
+static PyObject* ToxCore_tox_conference_invite(ToxCore* self, PyObject* args)
+{
+    CHECK_TOX(self);
+
+    int friend_number = 0;
+    int conference_number = 0;
+    if (!PyArg_ParseTuple(args, "ii", &friend_number, &conference_number))
+        return NULL;
+
+    TOX_ERR_CONFERENCE_INVITE error;
+    tox_conference_invite(self->tox, friend_number, conference_number, &error);
+    if (error != TOX_ERR_CONFERENCE_INVITE_OK)
+        PyErr_SetString(ToxCoreException, "failed to invite friend");
+
+    Py_RETURN_NONE;
+}
+//----------------------------------------------------------------------------------------------
+
+static PyObject* ToxCore_tox_conference_join(ToxCore* self, PyObject* args)
+{
+    CHECK_TOX(self);
+
+    int friend_number = 0;
+    uint8_t* cookie = NULL;
+    int length = 0;
+
+    if (!PyArg_ParseTuple(args, "is#", &friend_number, &cookie, &length))
+        return NULL;
+
+    TOX_ERR_CONFERENCE_JOIN error;
+    uint32_t ret = tox_conference_join(self->tox, friend_number, cookie, length,
+            &error);
+    if (error != TOX_ERR_CONFERENCE_JOIN_OK)
+        PyErr_SetString(ToxCoreException, "failed to join conference");
+
+    return PyLong_FromLong(ret);
+}
+//----------------------------------------------------------------------------------------------
+
+static PyObject* ToxCore_tox_conference_send_message(ToxCore* self, PyObject* args)
+{
+    CHECK_TOX(self);
+
+    int conference_number = 0;
+    int type = 0;
+    uint8_t* message = NULL;
+    uint32_t length = 0;
+
+    if (!PyArg_ParseTuple(args, "iis#", &conference_number, &type, &message, &length))
+        return NULL;
+
+    TOX_ERR_CONFERENCE_SEND_MESSAGE error;
+    tox_conference_send_message(self->tox, conference_number, type, message, length, &error);
+    if (error != TOX_ERR_CONFERENCE_SEND_MESSAGE_OK)
+        PyErr_SetString(ToxCoreException, "failed to send conference message");
+
+    Py_RETURN_NONE;
+}
+//----------------------------------------------------------------------------------------------
+
+static PyObject* ToxCore_tox_conference_peer_number_is_ours(ToxCore* self, PyObject* args)
+{
+    CHECK_TOX(self);
+
+    int conference_number = 0;
+    int peer_number = 0;
+
+    if (!PyArg_ParseTuple(args, "ii", &conference_number, &peer_number))
+        return NULL;
+
+    TOX_ERR_CONFERENCE_PEER_QUERY error;
+    bool ret = tox_conference_peer_number_is_ours(self->tox, conference_number, peer_number, &error);
+    if (error != TOX_ERR_CONFERENCE_PEER_QUERY_OK)
+        PyErr_SetString(ToxCoreException, "failed to check if peer number is ours");
+
+    return PyLong_FromLong(ret);
+}
+//----------------------------------------------------------------------------------------------
+
+static PyObject* ToxCore_tox_conference_peer_count(ToxCore* self, PyObject* args)
+{
+    CHECK_TOX(self);
+
+    int conference_number = 0;
+
+    if (!PyArg_ParseTuple(args, "i", &conference_number))
+        return NULL;
+
+    TOX_ERR_CONFERENCE_PEER_QUERY error;
+    uint32_t count = tox_conference_peer_count(self->tox, conference_number, &error);
+    if (error != TOX_ERR_CONFERENCE_PEER_QUERY_OK)
+        PyErr_SetString(ToxCoreException, "failed to get conference peer count");
+
+    return PyLong_FromLong(count);
+}
+//----------------------------------------------------------------------------------------------
+
+static PyObject* ToxCore_tox_conference_get_chatlist_size(ToxCore* self, PyObject* args)
+{
+    CHECK_TOX(self);
+
+    size_t n = tox_conference_get_chatlist_size(self->tox);
+    return PyLong_FromUnsignedLong(n);
+}
+//----------------------------------------------------------------------------------------------
+
+static PyObject* ToxCore_tox_conference_get_chatlist(ToxCore* self, PyObject* args)
+{
+    CHECK_TOX(self);
+
+    uint32_t count = tox_conference_get_chatlist_size(self->tox);
+    uint32_t* list = (uint32_t*)malloc(count * sizeof(uint32_t));
+    if (list == NULL) {
+        PyErr_SetString(ToxCoreException, "allocation failure");
+        Py_RETURN_NONE;
+    }
+
+    tox_conference_get_chatlist(self->tox, list);
+
+    PyObject* plist = PyList_New(count);
+    if (plist == NULL) {
+        free(list);
+        PyErr_SetString(ToxCoreException, "Can not allocate memory.");
+        return NULL;
+    }
+
+    size_t i = 0;
+    for (i = 0; i < count; i++)
+        if (PyList_SetItem(plist, i, PyLong_FromLong(list[i])) != 0) {
+            free(list);
+            Py_DECREF(plist);
+            return NULL;
+        }
+
+    free(list);
+
+    return plist;
+}
+//----------------------------------------------------------------------------------------------
+
 static bool parse_TOX_ERR_FILE_SEND(TOX_ERR_FILE_SEND error)
 {
     bool success = false;
@@ -2416,6 +2690,21 @@ PyMethodDef ToxCore_methods[] = {
         "This event is triggered when a friend starts or stops typing."
     },
     {
+        "tox_conference_invite_cb", (PyCFunction)ToxCore_callback_stub, METH_VARARGS,
+        "tox_conference_invite(_cb(friend_number, type, cookie)\n"
+        "This event is triggered when a conference invite is received."
+    },
+    {
+        "tox_conference_message_cb", (PyCFunction)ToxCore_callback_stub, METH_VARARGS,
+        "tox_conference_message_cb(conference_number, peer_number, type, message)\n"
+        "This event is triggered when a message from a conference is received."
+    },
+    {
+        "tox_conference_namelist_cb", (PyCFunction)ToxCore_callback_stub, METH_VARARGS,
+        "tox_conference_namelist_cb(conference_number, peer_number, change)\n"
+        "This event is triggered when someone joins, leaves or changes his name in a conference."
+    },
+    {
         "tox_file_chunk_request_cb", (PyCFunction)ToxCore_callback_stub, METH_VARARGS,
         "tox_file_chunk_request_cb(friend_number, file_number, position, length)\n"
         "This event is triggered when Core is ready to send more file data."
@@ -2710,6 +2999,72 @@ PyMethodDef ToxCore_methods[] = {
         "tox_friend_get_public_key", (PyCFunction)ToxCore_tox_friend_get_public_key, METH_VARARGS,
         "tox_friend_get_public_key(friend_number)\n"
         "Return the Public Key associated with a given friend number."
+    },
+    {
+        "tox_conference_get_title", (PyCFunction)ToxCore_tox_conference_get_title, METH_VARARGS,
+        "tox_conference_get_title(conference_number)\n"
+        "Return the title for a conference."
+    },
+    {
+        "tox_conference_set_title", (PyCFunction)ToxCore_tox_conference_set_title, METH_VARARGS,
+        "tox_conference_set_title(conference_number, title)\n"
+        "Set the title for a conference."
+    },
+    {
+        "tox_conference_get_type", (PyCFunction)ToxCore_tox_conference_get_type, METH_VARARGS,
+        "tox_conference_get_type(conference_number)\n"
+        "Return the type of conference."
+    },
+    {
+        "tox_conference_new", (PyCFunction)ToxCore_tox_conference_new, METH_VARARGS,
+        "tox_conference_new()\n"
+        "Create a new conference and puts it in the chats array."
+    },
+    {
+        "tox_conference_delete", (PyCFunction)ToxCore_tox_conference_delete, METH_VARARGS,
+        "tox_conference_delete(conference_number)\n"
+        "Delete a conference from the chats array."
+    },
+    {
+        "tox_conference_peer_get_name", (PyCFunction)ToxCore_tox_conference_peer_get_name, METH_VARARGS,
+        "tox_conference_peer_get_name(conference_number, peer_number)\n"
+        "Get the conference peer's name."
+    },
+    {
+        "tox_conference_invite", (PyCFunction)ToxCore_tox_conference_invite, METH_VARARGS,
+        "tox_conference_invite(friend_number, conference_number)\n"
+        "Invite friend_number to conference_number."
+    },
+    {
+        "tox_conference_join", (PyCFunction)ToxCore_tox_conference_join, METH_VARARGS,
+        "tox_conference_join(friend_number, cookie)\n"
+        "Join a conference (you need to have been invited first.). Returns the "
+        "conference number on success."
+    },
+    {
+        "tox_conference_send_message", (PyCFunction)ToxCore_tox_conference_send_message, METH_VARARGS,
+        "tox_conference_send_message(conference_number, type, message)\n"
+        "Send a conference message."
+    },
+    {
+        "tox_conference_peer_count", (PyCFunction)ToxCore_tox_conference_peer_count, METH_VARARGS,
+        "tox_conference_peer_count(conference_number)\n"
+        "Return the number of peers in the conference."
+    },
+    {
+        "tox_conference_get_chatlist_size", (PyCFunction)ToxCore_tox_conference_get_chatlist_size, METH_VARARGS,
+        "tox_conference_get_chatlist_size()\n"
+        "Return the number of conferences in the current Tox instance."
+    },
+    {
+        "tox_conference_peer_number_is_ours", (PyCFunction)ToxCore_tox_conference_peer_number_is_ours, METH_VARARGS,
+        "tox_conference_peer_number_is_ours(conference_number, peer_number)\n"
+        "Check if the current peer number corresponds to ours."
+    },
+    {
+        "tox_conference_get_chatlist", (PyCFunction)ToxCore_tox_conference_get_chatlist, METH_VARARGS,
+        "tox_conference_get_chatlist()\n"
+        "Return a list of valid conference numbers."
     },
     {
         "tox_file_send", (PyCFunction)ToxCore_tox_file_send, METH_VARARGS,
@@ -3161,6 +3516,9 @@ static int init_helper(ToxCore* self, PyObject* args)
     tox_callback_file_recv_chunk(tox, callback_file_recv_chunk);
     tox_callback_friend_lossy_packet(tox, callback_friend_lossy_packet);
     tox_callback_friend_lossless_packet(tox, callback_friend_lossless_packet);
+    tox_callback_conference_invite(tox, callback_conference_invite);
+    tox_callback_conference_message(tox, callback_conference_message);
+    tox_callback_conference_namelist_change(tox, callback_conference_namelist_change);
 #else
     tox_callback_self_connection_status(tox, callback_self_connection_status, self);
     tox_callback_friend_request(tox, callback_friend_request, self);
@@ -3177,6 +3535,9 @@ static int init_helper(ToxCore* self, PyObject* args)
     tox_callback_file_recv_chunk(tox, callback_file_recv_chunk, self);
     tox_callback_friend_lossy_packet(tox, callback_friend_lossy_packet, self);
     tox_callback_friend_lossless_packet(tox, callback_friend_lossless_packet, self);
+    tox_callback_conference_invite(tox, callback_conference_invite, self);
+    tox_callback_conference_message(tox, callback_conference_message, self);
+    tox_callback_conference_namelist_change(tox, callback_conference_namelist_change, self);
 #endif
 
     self->tox = tox;
@@ -3336,6 +3697,15 @@ void ToxCore_install_dict(void)
     SET(TOX_FILE_CONTROL_RESUME);
     SET(TOX_FILE_CONTROL_PAUSE);
     SET(TOX_FILE_CONTROL_CANCEL);
+
+    // enum TOX_CONFERENCE_STATE_CHANGE
+    SET(TOX_CONFERENCE_STATE_CHANGE_PEER_JOIN);
+    SET(TOX_CONFERENCE_STATE_CHANGE_PEER_EXIT);
+    SET(TOX_CONFERENCE_STATE_CHANGE_PEER_NAME_CHANGE);
+
+    // enum TOX_CONFERENCE_TYPE
+    SET(TOX_CONFERENCE_TYPE_TEXT);
+    SET(TOX_CONFERENCE_TYPE_AV);
 
     // non-api for tox_sendfile
     SET(TOX_SENDFILE_COMPLETED);
