@@ -334,7 +334,7 @@ static void callback_friend_request(Tox* tox, const uint8_t* public_key, const u
 static void callback_friend_message(Tox* tox, uint32_t friend_number, TOX_MESSAGE_TYPE type, const uint8_t* message, size_t length, void* self)
 {
     PyGILState_STATE gil = PyGILState_Ensure();
-    PyObject_CallMethod((PyObject*)self, "tox_friend_message_cb", "Is#", friend_number, message, length);
+    PyObject_CallMethod((PyObject*)self, "tox_friend_message_cb", "IIs#", friend_number, type, message, length);
     PyGILState_Release(gil);
 }
 //----------------------------------------------------------------------------------------------
